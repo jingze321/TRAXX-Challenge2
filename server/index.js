@@ -4,11 +4,14 @@ const bodyParser = require('body-parser');
 const cookieParser = require('cookie-parser');
 const session = require('express-session');
 
-const bcrypt = require("bcrypt")
+require('dotenv').config();
 
+const bcrypt = require("bcrypt")    //password before:123123 after:$2a$10$qUFEXe4.mj5D8zCv7eV0K.MG8GuWEMVCUdHmameZ6DBLzg8IQewTu
+                                    //https://bcrypt-generator.com/   
+                                    // Create encrypt password here and save into user database
 var cors = require('cors')
 const corsOptions ={
-    origin:'http://localhost:3000',
+    origin: process.env.REACT_APP_FRONTEND_URL??'http://localhost:3000',
     methods:["GET","POST"], 
     credentials:true,            //access-control-allow-credentials:true
     optionSuccessStatus:200
@@ -24,24 +27,20 @@ app.use(session({
     secret:"helloworld",
     resave:false,
     saveUninitialized:false,
-    cookie:{
-        expires:60*60*24,
-    }
+    rolling: true,
+    cookie: { 
+        maxAge: 7 * 24 * 3600 * 1000,
+      },
 }))
 
 
 const mysql = require('mysql');
-// const db = mysql.createPool({
-//     host:'localhost',
-//     user:'root',
-//     password:'root',
-//     database:'dev-challenge',
-// })
+
 var db = mysql.createConnection({
-    host: "localhost",
-    user: "root",
-    password: "",
-    database:'dev-challenge',
+    host: process.env.REACT_APP_DATABASE_HOST??"localhost",
+    user: process.env.REACT_APP_DATABASE_USER??"root",
+    password: process.env.REACT_APP_DATABASE_PASSWORD??"",
+    database:process.env.REACT_APP_DATABASE_DATABASE??'dev-challenge',
   });
 
 
@@ -55,7 +54,6 @@ app.get("/",(req,res)=>{
 })
 
 app.get("/api/login",(req,res)=>{
-
     if(req.session.user){
         res.send({loggedIn:true,user:req.session.user})
     }else{
@@ -75,16 +73,14 @@ app.post("/api/login",(req,res)=>{
         if (err){
             res.send({err:err});
         }
-        console.log(result,'result',result.length);
 
         if (result.length>0){
             bcrypt.compare(password,result[0].password,(error,response)=>{
-                console.log(response,'response');
                 if(response){
                     req.session.user= result;
                     res.send(result);
                 }else{
-                    res.send({message:"Wrong password"});
+                    res.send({message:"Wrong password (Noted: Password encrypt bcrypt with Rounds 10)"}); 
                 }
             })
         }else{
@@ -92,7 +88,6 @@ app.post("/api/login",(req,res)=>{
         }
 
     })
-    // res.send("1234",username,req);
 
 })
 
@@ -138,7 +133,6 @@ app.post("/api/currency/save",(req,res)=>{
         
         const isnertQuery2 = 
             `UPDATE currency SET rate='${rate2}' WHERE base='${req.body.counter}' AND counter='${req.body.base}'`;
-        console.log(isnertQuery1);
             db.query(isnertQuery1,(err,result1)=>{
                 if (err) throw err;
                 db.query(isnertQuery2,(err,result2)=>{
@@ -156,7 +150,6 @@ app.post("/api/currency/delete",(req,res)=>{
         `Delete FROM currency WHERE (base='${req.body.base}' AND counter='${req.body.counter}') OR (base='${req.body.counter}' AND counter='${req.body.base}')`;
             
     
-    console.log(deleteQuery1);
         db.query(deleteQuery1,(err,result1)=>{
             if (err) throw err;
                 res.status(200).send({message:"Successful"});
@@ -170,7 +163,6 @@ app.get("/api/currency/find-base",(req,res)=>{
         if (err){
             res.send({err:err});
         }
-        console.log(result);
 
         res.status(200).send({result});
     })
@@ -183,7 +175,6 @@ app.get("/api/currency/get-exist-currency",(req,res)=>{
         if (err){
             res.send({err:err});
         }
-        console.log(result);
 
         res.status(200).send({result});
     })
@@ -191,7 +182,6 @@ app.get("/api/currency/get-exist-currency",(req,res)=>{
 
 app.get("/api/currency/get-rate",(req,res)=>{
     const query = `SELECT * FROM currency WHERE base='${req.query.base}' AND counter='${req.query.counter}';`
-    console.log(query);
     db.query(query,(err,result)=>{
         if (err){
             res.send({err:err});
@@ -201,8 +191,8 @@ app.get("/api/currency/get-rate",(req,res)=>{
     })
 });
 
-app.listen(4000,()=>{
-    console.log('running on port 4000');
+app.listen(process.env.REACT_APP_SERVER_PORT??4000,()=>{
+    console.log(`running on port ${process.env.REACT_APP_SERVER_PORT}`);
     db.connect(function(err) {
         if (err) throw err;
         console.log("Connected!");
